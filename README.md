@@ -1,4 +1,4 @@
-# template
+# simple-relay
 
 install python 3.11 if not yet installed
 ```sh
@@ -7,8 +7,8 @@ pyenv install 3.11.4
 
 set up dev environment
 ```sh
-pyenv virtualenv 3.11.4 template
-pyenv local template
+pyenv virtualenv 3.11.4 simple-relay
+pyenv local simple-relay
 pip install -r project/requirements/local.txt
 pre-commit install
 ```
