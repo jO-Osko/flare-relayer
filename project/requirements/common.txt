@@ -26,3 +26,6 @@ types-setuptools==69.0.0.20240115
 # connecting to web3
 web3==6.15.1
 bech32==1.2.0
+
+# working with dictionaries
+pprintpp==0.4.0

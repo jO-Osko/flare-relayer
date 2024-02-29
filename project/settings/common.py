@@ -91,6 +91,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # our apps
     "afauth.apps.AfauthConfig",
+    "relay.apps.RelayConfig",
 ]
 
 LANGUAGE_CODE = "en-us"
@@ -208,5 +209,7 @@ for cls in [QuerySet]:
 
 # APP SPECIFIC SETTINGS
 # node endpoint
-NODE_RPC_URL = os.environ.get("NODE_RPC_URL")
-NODE_WS_URL = os.environ.get("NODE_WS_URL")
+COSTON_NODE_RPC_URL = os.environ.get("COSTON_NODE_RPC_URL")
+COSTON_NODE_WS_URL = os.environ.get("COSTON_NODE_WS_URL")
+SEPOLIA_NODE_RPC_URL = os.environ.get("SEPOLIA_NODE_RPC_URL")
+SEPOLIA_NODE_WS_URL = os.environ.get("SEPOLIA_NODE_WS_URL")

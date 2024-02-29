@@ -29,15 +29,19 @@ class CallTrace(_RequiredCallTrace, total=False):
 
 
 class GEthClient:
-    _rpc_url = settings.NODE_RPC_URL
-    _ws_url = None
-    _ws_url = settings.NODE_WS_URL
-
     def __init__(self, w3_provider) -> None:
         self.geth: AsyncWeb3 = w3_provider
 
     @classmethod
-    async def __async_init__(cls):
+    async def __async_init__(cls, network: str):
+        if network == "Coston":
+            cls._rpc_url = settings.COSTON_NODE_RPC_URL
+            cls._ws_url = settings.COSTON_NODE_WS_URL
+        elif network == "Sepolia":
+            cls._rpc_url = settings.SEPOLIA_NODE_RPC_URL
+            cls._ws_url = settings.SEPOLIA_NODE_WS_URL
+        else:
+            raise NameError
         return cls(await cls.init_provider())
 
     @classmethod
