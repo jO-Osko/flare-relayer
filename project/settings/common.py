@@ -204,3 +204,9 @@ for cls in [QuerySet]:
     cls.__class_getitem__ = classmethod(lambda cls, *args, **kwargs: cls)  # type: ignore [attr-defined]
 
 # END OF DEPENDENCY SETTINGS
+
+
+# APP SPECIFIC SETTINGS
+# node endpoint
+NODE_RPC_URL = os.environ.get("NODE_RPC_URL")
+NODE_WS_URL = os.environ.get("NODE_WS_URL")
