@@ -42,6 +42,7 @@ class GEthClient:
             cls._ws_url = settings.SEPOLIA_NODE_WS_URL
         else:
             raise NameError
+
         return cls(await cls.init_provider())
 
     @classmethod
