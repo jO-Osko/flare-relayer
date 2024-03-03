@@ -214,5 +214,8 @@ COSTON_NODE_WS_URL = os.environ.get("COSTON_NODE_WS_URL")
 SEPOLIA_NODE_RPC_URL = os.environ.get("SEPOLIA_NODE_RPC_URL")
 SEPOLIA_NODE_WS_URL = os.environ.get("SEPOLIA_NODE_WS_URL")
 
+COSTON_RELAY = os.environ.get("COSTON_RELAY")
+SEPOLIA_RELAY = os.environ.get("SEPOLIA_RELAY")
+
 PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
 FLARE_RPC_API_KEY = os.environ.get("FLARE_RPC_API_KEY")

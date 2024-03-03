@@ -12,13 +12,13 @@ from eth_account.signers.local import LocalAccount
 from web3 import AsyncWeb3
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
-from abis.constants import COSTON_RELAY, SEPOLIA_RELAY
 from geth.client import GEthClient
+from relay.models import Block
 
 logger = logging.getLogger(__name__)
 
-relayAbi = json.load(open("abis/RelayGateway.json"))["abi"]
-erc20abi = json.load(open("abis/ERC20abi.json"))
+relayAbi = json.load(open("abis/RelayABI.json"))
+erc20abi = json.load(open("abis/ERC20ABI.json"))
 
 reqRel = filter(lambda f: ("name" in f) and (f["name"] == "requestRelay"), relayAbi)
 reqRelTypes = [val["type"] for val in list(reqRel)[0]["inputs"]]
@@ -30,7 +30,7 @@ relayReqTopic = "0x4599a14afb01d51b75540a961262ad1157de6ef44f1780ef686af91fef984
 
 
 async def callOtherSide(callData, chain: str):
-    relayAddr = SEPOLIA_RELAY if chain == "sepolia" else COSTON_RELAY
+    relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
 
     uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount = callData
 
@@ -76,18 +76,19 @@ async def callOtherSide(callData, chain: str):
 
 async def listener(chain: str):
     gethClient = await GEthClient.__async_init__(chain)
-    last_block = await gethClient.geth.eth.block_number
-    relayAddr = SEPOLIA_RELAY if chain == "sepolia" else COSTON_RELAY
+    last_block, created = await Block.objects.aget_or_create(chain=chain, defaults={"number": 0, "timestamp": 0})
+    if created:
+        last_block.number = await gethClient.geth.eth.block_number
+    relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
 
     to_chain = "coston" if chain == "sepolia" else "sepolia"
 
     while True:
-        current_block = await gethClient.geth.eth.block_number
+        current_block_n = await gethClient.geth.eth.block_number
 
-        while last_block < current_block:
-            block = await gethClient.geth.eth.get_block(last_block, full_transactions=True)
-            last_block += 1
-            logger.info(f"Checking block: {last_block}")
+        while last_block.number < current_block_n:
+            block = await gethClient.geth.eth.get_block(last_block.number, full_transactions=True)
+            logger.info(f"Checking block: {last_block.number}")
 
             assert "transactions" in block
             for tx in block["transactions"]:
@@ -104,7 +105,8 @@ async def listener(chain: str):
                             callData = decode(relExeTypes, data)
 
                             await callOtherSide(callData, to_chain)
-
+            last_block.number += 1
+            await last_block.asave()
         await asyncio.sleep(1)
 
 
@@ -114,5 +116,7 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> str | None:
         logger.info("Starting listener")
+
+        assert options["chain"][0] in ["sepolia", "coston"], "Chain name is incorrect"
 
         asyncio.run(listener(options["chain"][0]))

@@ -10,19 +10,18 @@ from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
-from abis.constants import COSTON_RELAY, SEPOLIA_RELAY
 from geth.client import GEthClient
 
 logger = logging.getLogger(__name__)
 
-relayAbi = json.load(open("abis/RelayGateway.json"))["abi"]
-erc20abi = json.load(open("abis/ERC20abi.json"))
+relayAbi = json.load(open("abis/RelayABI.json"))
+erc20abi = json.load(open("abis/ERC20ABI.json"))
 
 
 async def txSpammer(chain: str):
     # Same idea works for another part of the relay
     gethClient = await GEthClient.__async_init__(chain)
-    relayAddr = SEPOLIA_RELAY if chain == "sepolia" else COSTON_RELAY
+    relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
 
     account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
     gethClient.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
