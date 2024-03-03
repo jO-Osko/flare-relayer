@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 from typing import Any
 
 from django.conf import settings
@@ -194,12 +195,58 @@ async def testing():
         #     #     pprint.pprint(f)
 
 
+async def txSpammer():
+    # Same idea works for another part of the relay
+    costonGeth = await GEthClient.__async_init__("Coston")
+
+    account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
+    costonGeth.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
+
+    transaction = {
+        "from": account.address,
+    }
+
+    # Get random token
+    tokenId = random.randint(0, 10)
+
+    relayer_contract = costonGeth.geth.eth.contract(COSTON_RELAY, abi=relayAbi)
+
+    # We just call it to get the result
+    token_address: str = await relayer_contract.functions.availableTokens(tokenId).call(transaction)
+    print(token_address)
+
+    # We allow the contract to later take our tokens
+    amount_to_send = 123
+    erc20contract = costonGeth.geth.eth.contract(token_address, abi=erc20abi)
+    tx = await erc20contract.functions.approve(COSTON_RELAY, amount_to_send).transact(transaction)
+
+    # Wait for some time
+    # Todo urban: https://web3py.readthedocs.io/en/stable/web3.eth.html#web3.eth.Eth.get_transaction_receipt
+    await asyncio.sleep(4)
+
+    print("allowance", tx.hex())
+    request_tx_hash = await relayer_contract.functions.requestRelay(
+        account.address,  # Target is me on the other side - to make it easier to return the transaction
+        "0x",  # Empty calldata for now
+        token_address,  # Token address the source token - the other side is calculated on contract
+        amount_to_send,
+    ).transact(transaction)
+
+    print(request_tx_hash.hex())
+
+
 class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> str | None:
         logger.info("starting listener")
 
         # asyncio.run(listenerSepolia())
         # asyncio.run(listenerCoston())
-        asyncio.run(byHand())
+        # asyncio.run(byHand())
         # asyncio.run(testing())
         # asyncio.run(testing())
+
+        asyncio.run(txSpammer())
+        # asyncio.run(txSpammer())
+        # asyncio.run(txSpammer())
+        # asyncio.run(txSpammer())
+        # asyncio.run(txSpammer())
