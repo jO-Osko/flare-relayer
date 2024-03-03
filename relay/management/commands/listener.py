@@ -11,16 +11,16 @@ from eth_account.signers.local import LocalAccount
 from web3 import AsyncWeb3
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
+from abis.constants import COSTON_RELAY, SEPOLIA_RELAY
 from geth.client import GEthClient
-from lib.constants import COSTON_RELAY, SEPOLIA_RELAY
 
 logger = logging.getLogger(__name__)
 
 # TODO: save this better
 # TODO: should we have contracts?
-relayJsonF = open("lib/RelayGateway.json")
+relayJsonF = open("abis/RelayGateway.json")
 relayAbi = json.load(relayJsonF)["abi"]
-erc20abi = json.load(open("lib/ERC20abi.json",'r'))
+erc20abi = json.load(open("abis/ERC20abi.json"))
 
 reqRel = filter(lambda f: ("name" in f) and (f["name"] == "requestRelay"), relayAbi)
 reqRelTypes = [val["type"] for val in list(reqRel)[0]["inputs"]]
@@ -73,13 +73,21 @@ async def callOtherSide(callData):
     # Coston currently not working
     uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount = callData
 
-    callData = list(callData)
-    callData[1] = AsyncWeb3.to_checksum_address(relayInitiator)
-    callData[2] = AsyncWeb3.to_checksum_address(relayTarget)
-    callData[4] = AsyncWeb3.to_checksum_address(sourceToken)
-    callData[5] = AsyncWeb3.to_checksum_address(targetToken)
+    EMPTY_BYTES = "0x" + "0" * 64
 
-    data = tuple(callData + [0, "0x" + "0" * 64])
+    callDataDict = {
+        "uid": 0,
+        "relayInitiator": AsyncWeb3.to_checksum_address(relayInitiator),
+        "relayTarget": AsyncWeb3.to_checksum_address(relayTarget),
+        "additionalCalldata": additionalCalldata,
+        "sourceToken": AsyncWeb3.to_checksum_address(sourceToken),
+        "targetToken": AsyncWeb3.to_checksum_address(targetToken),
+        "amount": amount,
+        "executionResult": 0,
+        "relayDataHash": EMPTY_BYTES,
+    }
+
+    print(callDataDict)
 
     costonGeth = await GEthClient.__async_init__("Coston")
     account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
@@ -87,24 +95,21 @@ async def callOtherSide(callData):
 
     transaction = {
         "from": account.address,
-        "to": callData[5]
     }
 
-    erc20contract = costonGeth.geth.eth.contract(callData[5], abi=erc20abi)
+    erc20contract = costonGeth.geth.eth.contract(callDataDict["targetToken"], abi=erc20abi)
 
     tx_hash = await erc20contract.functions.transfer(COSTON_RELAY, amount).transact(transaction)
-    print(tx_hash.hex)
-    
+    print(tx_hash.hex())
+
     transaction = {
         "from": account.address,
-        "to": COSTON_RELAY,
     }
 
     relayerContract = costonGeth.geth.eth.contract(COSTON_RELAY, abi=relayAbi)
 
-    ex: bytes = await relayerContract.functions.executeRelay(data).transact(transaction)
-    print(ex.hex)
-    
+    ex: bytes = await relayerContract.functions.executeRelay(callDataDict).transact(transaction)
+    print(ex.hex())
 
 
 async def listenerSepolia():
@@ -160,11 +165,11 @@ async def byHand():
     for tx in block["transactions"]:
         if tx["to"] == SEPOLIA_RELAY:  # type: ignore
             tx_rec = await sepoliaGeth.geth.eth.get_transaction_receipt(tx["hash"])  # type: ignore
-
+            print(tx["hash"].hex())
+            return
             logs = tx_rec["logs"]
             for log in logs:
                 if log["topics"][0].hex() == relExeKeccak:
-
                     data = log["data"]
                     callData = decode(relExeTypes, data)
 
@@ -172,7 +177,6 @@ async def byHand():
 
 
 async def testing():
-
     for f in relayAbi:
         if ("name" in f) and (f["name"] == "requestRelay"):
             print(f)
@@ -192,10 +196,10 @@ async def testing():
 
 class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> str | None:
-
         logger.info("starting listener")
 
         # asyncio.run(listenerSepolia())
         # asyncio.run(listenerCoston())
         asyncio.run(byHand())
+        # asyncio.run(testing())
         # asyncio.run(testing())
