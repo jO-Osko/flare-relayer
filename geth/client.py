@@ -34,10 +34,10 @@ class GEthClient:
 
     @classmethod
     async def __async_init__(cls, network: str):
-        if network == "Coston":
+        if network == "coston":
             cls._rpc_url = settings.COSTON_NODE_RPC_URL + f"?x-apikey={settings.FLARE_RPC_API_KEY}"
             cls._ws_url = settings.COSTON_NODE_WS_URL
-        elif network == "Sepolia":
+        elif network == "sepolia":
             cls._rpc_url = settings.SEPOLIA_NODE_RPC_URL
             cls._ws_url = settings.SEPOLIA_NODE_WS_URL
         else:
