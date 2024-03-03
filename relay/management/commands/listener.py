@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # TODO: should we have contracts?
 relayJsonF = open("lib/RelayGateway.json")
 relayAbi = json.load(relayJsonF)["abi"]
+erc20abi = json.load(open("lib/ERC20abi.json",'r'))
 
 reqRel = filter(lambda f: ("name" in f) and (f["name"] == "requestRelay"), relayAbi)
 reqRelTypes = [val["type"] for val in list(reqRel)[0]["inputs"]]
@@ -71,23 +72,6 @@ async def listenerCoston():
 async def callOtherSide(callData):
     # Coston currently not working
     uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount = callData
-    # relayInitiator = relayInitiator[2:]
-    # relayTarget = relayTarget[2:]
-    # sourceToken = sourceToken[2:]
-    # targetToken = targetToken[2:]
-    # print(targetToken)
-
-    dataDict = {
-        "uid": uid,
-        "relayInitiator": relayInitiator,
-        "relayTarget": relayTarget,
-        "additionalCalldata": additionalCalldata,
-        "sourceToken": sourceToken,
-        "targetToken": targetToken,
-        "amount": amount,
-        "executionResult": 0,
-        "relayDataHash": "0x" + "0" * 64,
-    }
 
     callData = list(callData)
     callData[1] = AsyncWeb3.to_checksum_address(relayInitiator)
@@ -97,31 +81,30 @@ async def callOtherSide(callData):
 
     data = tuple(callData + [0, "0x" + "0" * 64])
 
-    costonGeth = await GEthClient.__async_init__("Sepolia")
+    costonGeth = await GEthClient.__async_init__("Coston")
+    account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
+    costonGeth.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
 
-    relayerContract = costonGeth.geth.eth.contract(SEPOLIA_RELAY, abi=relayAbi)
-    # pprint.pprint(relayAbi)
-    # return
+    transaction = {
+        "from": account.address,
+        "to": callData[5]
+    }
 
-    # decoded = relayerContract.decode_function_input(logData)
-    # print(decoded)
-    # print(relayerContract.events.RelayExecuted())
+    erc20contract = costonGeth.geth.eth.contract(callData[5], abi=erc20abi)
 
-    ex = await relayerContract.caller.executeRelay(data).transact()
-    # exCall = ex.call()
-    # print(ex)
-    # print(exCall)
+    tx_hash = await erc20contract.functions.transfer(COSTON_RELAY, amount).transact(transaction)
+    print(tx_hash.hex)
+    
+    transaction = {
+        "from": account.address,
+        "to": COSTON_RELAY,
+    }
 
-    # function = relayerContract.get_function_by_name("executeRelay")
-    # print(await relayerContract.get_function_by_name("executeRelay")(dataDict).call())
+    relayerContract = costonGeth.geth.eth.contract(COSTON_RELAY, abi=relayAbi)
 
-    # print(callData)
-
-    # con = relayerContract.functions.executeRelay(
-    #     [(uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount, 0, bytes(0))]
-    # ).transact()
-    # # con = relayerContract.functions.executeRelay(*callData)
-    # print(con)
+    ex: bytes = await relayerContract.functions.executeRelay(data).transact(transaction)
+    print(ex.hex)
+    
 
 
 async def listenerSepolia():
@@ -167,29 +150,23 @@ async def listenerSepolia():
 async def byHand():
     # print(relExeTypes)
     sepoliaGeth = await GEthClient.__async_init__("Sepolia")
-    account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
-    sepoliaGeth.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
+    # account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
+    # sepoliaGeth.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
     print("------------------------------")
     # this one has call to Coston relayer
     block_nr = 5393458
     block = await sepoliaGeth.geth.eth.get_block(block_nr, full_transactions=True)
     assert "transactions" in block
     for tx in block["transactions"]:
-        # print(tx["to"])
-        if tx["to"] == SEPOLIA_RELAY:
-            # print(tx["hash"].hex())
-            tx_rec = await sepoliaGeth.geth.eth.get_transaction_receipt(tx["hash"])
-            print(tx["hash"].hex())
+        if tx["to"] == SEPOLIA_RELAY:  # type: ignore
+            tx_rec = await sepoliaGeth.geth.eth.get_transaction_receipt(tx["hash"])  # type: ignore
 
             logs = tx_rec["logs"]
             for log in logs:
-                # print(log["topics"][0].hex())
                 if log["topics"][0].hex() == relExeKeccak:
 
                     data = log["data"]
-                    # print(data)
                     callData = decode(relExeTypes, data)
-                    print(callData)
 
                     await callOtherSide(callData)
 

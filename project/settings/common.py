@@ -215,3 +215,4 @@ SEPOLIA_NODE_RPC_URL = os.environ.get("SEPOLIA_NODE_RPC_URL")
 SEPOLIA_NODE_WS_URL = os.environ.get("SEPOLIA_NODE_WS_URL")
 
 PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
+FLARE_RPC_API_KEY = os.environ.get("FLARE_RPC_API_KEY")
