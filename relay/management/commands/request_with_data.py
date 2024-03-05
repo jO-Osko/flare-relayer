@@ -14,8 +14,10 @@ from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
 from geth.client import GEthClient
 
+# Start logger
 logger = logging.getLogger(__name__)
 
+# Define and read constant information
 relayAbi = json.load(open("abis/RelayABI.json"))
 erc20Abi = json.load(open("abis/ERC20ABI.json"))
 counterAbi = json.load(open("abis/CounterABI.json"))
@@ -26,45 +28,41 @@ setCounterCode = b"setCounter(uint256,address,uint256,address)"
 
 
 async def txSpammerData(chain: str):
-    # Same idea works for another part of the relay
+    # Create the web client and read the contract addresses
     gethClient = await GEthClient.__async_init__(chain)
     relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
     otherCounterAddr = settings.COSTON_COUNTER if chain == "sepolia" else settings.SEPOLIA_COUNTER
-
     account: LocalAccount = Account.from_key(settings.PRIVATE_KEY)
     gethClient.geth.middleware_onion.add(await async_construct_sign_and_send_raw_middleware(account))
-
     transaction = {
         "from": account.address,
     }
 
-    # Get random token
+    # The token selection is made randomly
     tokenId = random.randint(0, 10)
 
+    # Access the Relayer contract and call it, just to get the result
     relayer_contract = gethClient.geth.eth.contract(relayAddr, abi=relayAbi)  # type: ignore
-
-    # We just call it to get the result
     token_address: str = await relayer_contract.functions.availableTokens(tokenId).call()
     print("Token address: ", token_address)
 
-    # We allow the contract to later take our tokens
+    # Allow the contract to later take our tokens
     amount_to_send = 1234
     erc20contract = gethClient.geth.eth.contract(token_address, abi=erc20Abi)  # type: ignore
     tx = await erc20contract.functions.approve(relayAddr, amount_to_send).transact(transaction)
-
     # Wait for some time
     await gethClient.geth.eth.wait_for_transaction_receipt(tx)
+    print("Allowance tx_hash:", tx.hex())
 
     # Constuct call data that will call setCounter on the counter contract
-    # I don't think you can do "web3.eth.abi.encodeFunctionCall" with an async client?
-
-    # Encode function call
+    # [I don't think you can do "web3.eth.abi.encodeFunctionCall" with an async client]
+    # We first encode function call
     keccak = keccak_256()
     keccak.update(setCounterCode)
     setCounterKeccak = keccak.hexdigest()
 
-    # Encode arguments
-    newCounter = 2024
+    # And the also the arguments
+    newCounter = 123454321
     other_token_address = await relayer_contract.functions.tokenPair(token_address).call()
     amount = 123
     callData = encode(setCounterTypes, [newCounter, other_token_address, amount, account.address])
@@ -72,14 +70,13 @@ async def txSpammerData(chain: str):
     # Put encodings together
     callData = "0x" + setCounterKeccak[:8] + callData.hex()
 
-    print("Allowance tx_hash:", tx.hex())
+    # Call the RequestRelay function on the Relayer with the correct arguments
     request_tx_hash = await relayer_contract.functions.requestRelay(
         otherCounterAddr,  # Counter contract on the other side
         callData,  # callData for the "setCounter(...)" function on the Counter contract
         token_address,  # Token address the source token - the other side is calculated on contract
-        amount_to_send,
+        amount_to_send,  # Amount of tokens that is sent to the counter contract
     ).transact(transaction)
-
     print("Request relay hash: ", request_tx_hash.hex())
 
 
@@ -89,6 +86,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
+        # We make a relayer request with a call inside the additionalCalldata
         assert options["chain"][0] in ["sepolia", "coston"], "Chain name is incorrect"
-
         asyncio.run(txSpammerData(options["chain"][0]))
