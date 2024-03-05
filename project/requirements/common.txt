@@ -29,3 +29,6 @@ bech32==1.2.0
 
 # working with dictionaries
 pprintpp==0.4.0
+
+# encoding
+safe-pysha3==1.0.4

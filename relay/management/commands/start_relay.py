@@ -9,11 +9,12 @@ from django.core.management.base import CommandParser
 from eth_abi import decode
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
+from sha3 import keccak_256
 from web3 import AsyncWeb3
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
 from geth.client import GEthClient
-from relay.models import Block
+from relay.models import Block, RelayCall
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,22 @@ counterAbi = json.load(open("abis/CounterABI.json"))
 
 relExe = filter(lambda f: ("name" in f) and (f["name"] == "RelayExecuted"), relayAbi)
 relExeTypes = [val["type"] for val in next(iter(relExe))["inputs"]]
+relExeCode = b"RelayExecuted(uint256,address,address,bytes,address,address,uint256)"
 
 setCounter = filter(lambda f: ("name" in f) and (f["name"] == "setCounter"), counterAbi)
 setCounterTypes = [val["type"] for val in next(iter(setCounter))["inputs"]]
 
-relExeCode = "RelayExecuted(uint256,address,address,bytes,address,address,uint256)"
-relayReqTopic = "0x4599a14afb01d51b75540a961262ad1157de6ef44f1780ef686af91fef984be7"
+relReqCode = b"RelayRequested(uint256,address,address,bytes,address,address,uint256)"
 
 
-async def callOtherSide(callData, chain: str):
+async def callOtherSide(
+    callData: tuple,
+    chain: str,
+    from_chain: str,
+    blockNumber: int,
+    timestamp: int,
+    main_tx_hash: str,
+):
     relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
 
     uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount = callData
@@ -69,38 +77,37 @@ async def callOtherSide(callData, chain: str):
     transaction = {
         "from": account.address,
     }
+
+    # Access the Counter contract, so that I can check, if the counter was updated correctly
     counterAddr = settings.SEPOLIA_COUNTER if chain == "sepolia" else settings.COSTON_COUNTER
     counterContract = gethClient.geth.eth.contract(counterAddr, abi=counterAbi)
     counter = await counterContract.functions.getCounter().call()
-    print("CURRENT COUNTER : ", counter)
-    print(chain, "-----------")
+    print("Counter at the start : ", counter)
+
     relayerContract = gethClient.geth.eth.contract(relayAddr, abi=relayAbi)  # type: ignore
     ex = await relayerContract.functions.executeRelay(callDataDict).transact(transaction)
+    await gethClient.geth.eth.wait_for_transaction_receipt(ex)
     print("Execute relay hash: ", ex.hex())
 
     # reads current counter
     counter = await counterContract.functions.getCounter().call()
-    print("CURRENT COUNTER : ", counter)
+    print("Updated counter : ", counter)
 
-    otherCounterAddr = settings.COSTON_COUNTER if chain == "sepolia" else settings.SEPOLIA_COUNTER
-    otherClient = await GEthClient.__async_init__("coston" if chain == "sepolia" else "sepolia")
-    otherCounterContract = otherClient.geth.eth.contract(otherCounterAddr, abi=counterAbi)
-    otherCounter = await otherCounterContract.functions.getCounter().call()
-    print(otherCounter)
-
-    # callData = decode(setCounterTypes, additionalCalldata)
-    # dataList = [
-    #     callData[0],
-    #     AsyncWeb3.to_checksum_address(callData[1]),
-    #     callData[2],
-    #     AsyncWeb3.to_checksum_address(callData[3]),
-    # ]
-    # print("data List: ", dataList)
-    # exCounter = await counterContract.functions.setCounter(*dataList).call()
-    # print("Counter hash: ", exCounter.hex())
-
-    # counter = await counterContract.functions.getCounter().call()
-    # print("CURRENT COUNTER : ", counter)
+    # if everything completes, then create and save database object
+    relayCall = RelayCall(
+        chain=from_chain,
+        timestamp=timestamp,
+        blockNumber=blockNumber,
+        tx_hash=main_tx_hash,
+        uid=callDataDict["uid"],
+        relayInitiator=callDataDict["relayInitiator"],
+        relayTarget=callDataDict["relayTarget"],
+        additionalCalldata=callDataDict["additionalCalldata"],
+        sourceToken=callDataDict["sourceToken"],
+        targetToken=callDataDict["targetToken"],
+        amount=callDataDict["amount"],
+    )
+    await relayCall.asave()
 
 
 async def listener(chain: str):
@@ -111,6 +118,10 @@ async def listener(chain: str):
     relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
 
     to_chain = "coston" if chain == "sepolia" else "sepolia"
+
+    keccak = keccak_256()
+    keccak.update(relReqCode)
+    relayReqTopic = "0x" + keccak.hexdigest()
 
     while True:
         current_block_n = await gethClient.geth.eth.block_number
@@ -124,15 +135,23 @@ async def listener(chain: str):
                 if tx["to"] == relayAddr:  # type: ignore
                     tx_rec = await gethClient.geth.eth.get_transaction_receipt(tx["hash"])  # type: ignore
                     logs = tx_rec["logs"]
-
                     for log in logs:
+
+                        # we are looking for requestRelay calls
                         if log["topics"][0].hex() == relayReqTopic:
                             logger.info("Found new relay")
                             data = log["data"]
 
                             callData = decode(relExeTypes, data)
 
-                            await callOtherSide(callData, to_chain)
+                            await callOtherSide(
+                                callData,
+                                to_chain,
+                                chain,
+                                block["number"],  # type: ignore
+                                block["timestamp"],  # type: ignore
+                                tx_rec["transactionHash"].hex(),
+                            )
             last_block.number += 1
             await last_block.asave()
         await asyncio.sleep(1)
@@ -146,5 +165,4 @@ class Command(BaseCommand):
         logger.info("Starting listener")
 
         assert options["chain"][0] in ["sepolia", "coston"], "Chain name is incorrect"
-
         asyncio.run(listener(options["chain"][0]))
