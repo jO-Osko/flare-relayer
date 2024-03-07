@@ -15,7 +15,7 @@ services:
       - ./db-data/:/var/lib/postgresql/data
 
   relay-coston:
-    container_name: ${COMPOSE_PROJECT_NAME}_server
+    container_name: ${COMPOSE_PROJECT_NAME}_relay-coston
     image: ${DOCKER_IMAGE_URL}
     command: start-relay --chain coston
     env_file:
@@ -28,7 +28,7 @@ services:
       - ./media/:/appdata/media
 
   relay-sepolia:
-    container_name: ${COMPOSE_PROJECT_NAME}_server
+    container_name: ${COMPOSE_PROJECT_NAME}_relay-sepolia
     image: ${DOCKER_IMAGE_URL}
     command: start-relay --chain sepolia
     env_file:
