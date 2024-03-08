@@ -39,8 +39,8 @@ async def txSpammerData(chain: str):
     }
 
     # The token selection is made randomly
-    tokenId = random.randint(0, 10)
-
+    # tokenId = random.randint(0, 10)
+    tokenId = 0
     # Access the Relayer contract and call it, just to get the result
     relayer_contract = gethClient.geth.eth.contract(relayAddr, abi=relayAbi)  # type: ignore
     token_address: str = await relayer_contract.functions.availableTokens(tokenId).call()
@@ -69,8 +69,15 @@ async def txSpammerData(chain: str):
 
     # Put encodings together
     callData = "0x" + setCounterKeccak[:8] + callData.hex()
-
+    print("Call data: ", callData)
+    print("Other token", other_token_address)
     # Call the RequestRelay function on the Relayer with the correct arguments
+
+    print(otherCounterAddr,  # Counter contract on the other side
+        callData,  # callData for the "setCounter(...)" function on the Counter contract
+        token_address,  # Token address the source token - the other side is calculated on contract
+        amount_to_send,)
+
     request_tx_hash = await relayer_contract.functions.requestRelay(
         otherCounterAddr,  # Counter contract on the other side
         callData,  # callData for the "setCounter(...)" function on the Counter contract
