@@ -159,7 +159,7 @@ async def listener(chain: str):
                                     tx_rec["transactionHash"].hex(),
                                 )
                             except Exception as e:
-                                logger.error(f"Error: {e}")    
+                                logger.error(f"Error: {e}")
 
             last_block.number += 1
             await last_block.asave()
