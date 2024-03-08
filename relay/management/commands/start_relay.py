@@ -10,6 +10,7 @@ from eth_abi import decode
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from sha3 import keccak_256
+
 from web3 import AsyncWeb3
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
@@ -80,9 +81,9 @@ async def callOtherSide(
     # }
 
     # Access the Counter contract, so that we can check, if the counter was updated correctly
-    counterContract = gethClient.geth.eth.contract(counterAddr, abi=counterAbi)
-    counter = await counterContract.functions.getCounter().call()
-    print("Counter at the start : ", counter)
+    # counterContract = gethClient.geth.eth.contract(counterAddr, abi=counterAbi)
+    # counter = await counterContract.functions.getCounter().call()
+    # print("Counter at the start : ", counter)
 
     # Access the Relayer contract and call executeRelay function
     relayerContract = gethClient.geth.eth.contract(relayAddr, abi=relayAbi)  # type: ignore
@@ -91,8 +92,8 @@ async def callOtherSide(
     print("Execute relay hash: ", ex.hex())
 
     # Check if the counter was updated
-    counter = await counterContract.functions.getCounter().call()
-    print("Updated counter : ", counter)
+    # counter = await counterContract.functions.getCounter().call()
+    # print("Updated counter : ", counter)
 
     # If everything was successfuly completed, we create and save a database object
     relayCall = RelayCall(
