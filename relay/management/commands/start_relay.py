@@ -148,16 +148,19 @@ async def listener(chain: str):
 
                             # Decode the received calldata
                             callData = decode(relExeTypes, data)
+                            try:
+                                # Call the function that sends the data to the relayer on the other network
+                                await callOtherSide(
+                                    callData,
+                                    to_chain,
+                                    chain,
+                                    block["number"],  # type: ignore
+                                    block["timestamp"],  # type: ignore
+                                    tx_rec["transactionHash"].hex(),
+                                )
+                            except Exception as e:
+                                logger.error(f"Error: {e}")    
 
-                            # Call the function that sends the data to the relayer on the other network
-                            await callOtherSide(
-                                callData,
-                                to_chain,
-                                chain,
-                                block["number"],  # type: ignore
-                                block["timestamp"],  # type: ignore
-                                tx_rec["transactionHash"].hex(),
-                            )
             last_block.number += 1
             await last_block.asave()
         await asyncio.sleep(1)
