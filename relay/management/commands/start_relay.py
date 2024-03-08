@@ -10,7 +10,6 @@ from eth_abi import decode
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from sha3 import keccak_256
-
 from web3 import AsyncWeb3
 from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 
@@ -45,7 +44,6 @@ async def callOtherSide(
 ):
     # Read the contract addresses depending on their network
     relayAddr = settings.SEPOLIA_RELAY if chain == "sepolia" else settings.COSTON_RELAY
-    counterAddr = settings.SEPOLIA_COUNTER if chain == "sepolia" else settings.COSTON_COUNTER
 
     # Break down the decoded data and create the required dictionary from it
     uid, relayInitiator, relayTarget, additionalCalldata, sourceToken, targetToken, amount = callData
