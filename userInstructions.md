@@ -5,9 +5,11 @@ The addresses of the relayer contracts are the following:
 COSTON_RELAY=0x2f48135AdF44c99999cA0d6d21bD49466AaD74Fd
 SEPOLIA_RELAY=0x7b4d5e9388dBdB0161186D605379dafA3dc22100
 ```
+## About
+Flare relayer is a connection between Ethereum(sepolia) & Flare(coston) blockchain that allows the transfer calldata data and/or tokens from one chain to another.
 
 ## Instructions
-Its use is to send tokens and calldata from one network to another. This is done by calling the **requestRelay** function on the relayer contract of the first network. The function needs to be called with the following arguments:
+This is done by calling the **requestRelay** function on the relayer contract of the first network. The function needs to be called with the following arguments:
 
 - **_relayTarget** is the address of the contract, that we want to interact with. This target contract is on the second network and will receive the amount of tokens that are sent to the relayer on the first network.
 - **_additionalCalldata** are the keccak encoded bytes that contain the function name and the arguments of the function we want to call on the target contract.
@@ -24,7 +26,8 @@ The results of this call are:
 
 
 ## Example of the good call
-Example script with a good call is in the *```relay/management/commands/request_with_data.py```* file.
+An example script with a good call is in the *```relay/management/commands/request_with_data.py```* file.
+
 
 
 
